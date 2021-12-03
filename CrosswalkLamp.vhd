@@ -4,11 +4,10 @@ library ieee ;
 
 entity crosswalk_lamp is
   port (
-    reset : in std_logic;
     clock : in std_logic;
     tombol : inout std_logic
-  ) ;
-end crosswalk_lamp ; 
+  );
+end crosswalk_lamp; 
 
 architecture arch of crosswalk_lamp is
     --Component Low Lever Decoder BCD to 7-Segment
@@ -25,14 +24,16 @@ architecture arch of crosswalk_lamp is
 
     signal trigger_20 : std_logic := '0'; --trigger untuk memulai counter 20 detik
     signal trigger_5 : std_logic := '0'; --trigger untuk memulai counter 5 detik
+    signal trigger_STM : std_logic := '0';
 
     type state is (tidak_menyebrang, menyebrang, tunggu);   --Define State kondisi jalan raya
-    signal PS, NS : state;
+    signal PS, NS: state;
 
     type lampu is (merah, kuning, hijau);                   --Define warna yang akan menyala pada lampu
     signal lampu_jalanRaya, lampu_penyebrang : lampu;
 
     signal clock_count : integer := 0;                      --counter berdasarkan clock cycle
+    signal STM_counter1 : integer := 0;                   
     signal inputPuluhan : std_logic_vector (3 downto 0);    --Input decoder untuk 7-segment puluhan
     signal inputSatuan : std_logic_vector (3 downto 0);     --Input decoder untuk 7 segement satuan
     signal outputPuluhan : std_logic_vector (6 downto 0);   --Output decoder untuk 7-segment puluhan
@@ -46,28 +47,26 @@ begin
     decode_satuan : Decoder port map (clock, inputSatuan, outputSatuan);
 
     --Synchronous process (Merepresentasikan Flip FLop (terdapat Memory))
-    sync_proc : process (reset, clock, NS) --Variable control ada reset clock, dan Next State (NS)
+    sync_proc : process (clock, NS) --Variable control ada clock, dan Next State (NS)
     begin
         if rising_edge(clock) then 
-            PS <= NS;            
-        elsif reset = '1' then
-            PS <= tidak_menyebrang;    
+            PS <= NS;              
         end if;
     end process sync_proc;
 
     --Combinatioral process 
-    comb_proc : process (clock_count,tombol, PS) --Variable control ada clock-couter , tombol penyebrang (input 1 saat ada yang menekan tombol), Present State (PS)
+    comb_proc : process (STM_counter1,clock_count,tombol, PS) --Variable control ada clock-couter , tombol penyebrang (input 1 saat ada yang menekan tombol), Present State (PS)
     begin
         trigger_20 <= '0';
         trigger_5 <= '0';
-        tombol <= '0';
 
         case PS is
             when tidak_menyebrang =>                --Kondisi saat tidak ada pejalan kaki yang ingin menyebrang
                 lampu_jalanRaya <= hijau;           
-                lampu_penyebrang <= merah;          
-                if (tombol = '1') then              --Saat ada pejalan kaki yang menekan tombol ingin menyebrang jalan
-                    NS <= tunggu;                   --Next state menjadi tunggu
+                lampu_penyebrang <= merah;
+                trigger_STM <= '1';        
+                if (tombol = '1' and STM_counter1 > 19) then              --Saat ada pejalan kaki yang menekan tombol ingin menyebrang jalan Jika previus state merupakan menyebrang dan input tombol = 1 akan ada delay 20 detik sampai Next State menjadi tunggu
+                        NS <= tunggu;
                 elsif (tombol = '0') then           --Jika tidak ada pejalan kaki yang menekan tombol
                     NS <= tidak_menyebrang;         --Next State tetap ke kondisi tidak_menyebrang
                 end if;
@@ -83,16 +82,19 @@ begin
                 lampu_jalanRaya <= merah;
                 lampu_penyebrang <= hijau;
                 trigger_20 <= '1';                                                  --Trigger counter 20 detik aktif
-                if (clock_count = waktu_menyebrang) then NS <= tidak_menyebrang;    --Setelah counter bernilai sama dengan waktu menyebrang yaitu 20 detik maka NS menjadi kondisi tidak menyebrang
+                if (clock_count = waktu_menyebrang) then 
+                    NS <= tidak_menyebrang;                                         --Setelah counter bernilai sama dengan waktu menyebrang yaitu 20 detik maka NS menjadi kondisi tidak menyebrang
+                    tombol <= '0';                                                      --Reset tombol <= 0;
                 end if;
-                tombol <= '0';                                                      --Reset tombol <= 0;
+                
             end case;
             end process comb_proc;
 
         --Prosess counter waktu
         timer : process (trigger_20, trigger_5, clock)
         begin
-            if trigger_5 = '1' then                                                 --Jika trigger counter 5 detik menyala, maka counter akan menghitung 5 kali clock cycle
+            if trigger_5 = '1' then
+                STM_counter1 <= 0;                                                 --Jika trigger counter 5 detik menyala, maka counter akan menghitung 5 kali clock cycle
                 if rising_edge(clock) then                                          --Saat clock kondisi naik            
 					clock_count <= clock_count + 1;                                 --Counter akan bertamabh 1
 					if (clock_count = waktu_tunggu) then                            --Saat counter bernilai sama dengan waktu tunggu atau 5 detik
@@ -107,7 +109,11 @@ begin
                         clock_count <= 0;                                           --Counter akan direset
 					end if;
 				end if;
-            end if;
+            elsif trigger_STM = '1' then
+                if rising_edge(clock) then
+                    STM_counter1 <= STM_counter1 + 1;
+                end if;
+ 			end if;               
             end process timer;
 
         --proses input control untuk decoder puluhan dan satuan berdasarkan counter clock cycle        
