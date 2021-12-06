@@ -5,7 +5,8 @@ library ieee ;
 entity crosswalk_lamp is
   port (
     clock : in std_logic;
-    tombol : inout std_logic
+    tombol : in std_logic;
+    keadaan : out std_logic_vector (1 downto 0) -- 01 untuk tidak menyebrang, 10 untuk tunggu, 11 untuk menyebrang
   );
 end crosswalk_lamp; 
 
@@ -62,6 +63,7 @@ begin
 
         case PS is
             when tidak_menyebrang =>                --Kondisi saat tidak ada pejalan kaki yang ingin menyebrang
+                keadaan <= "01";
                 lampu_jalanRaya <= hijau;           
                 lampu_penyebrang <= merah;
                 trigger_STM <= '1';        
@@ -72,6 +74,7 @@ begin
                 end if;
 
             when tunggu =>                          --Kondisi sesaat setelah ada pejalan kaki yang menekan tombol
+                keadaan <= "10";
                 lampu_jalanRaya <= kuning;          
                 lampu_penyebrang <= kuning;         
                 trigger_5 <= '1';                                       --Trigger counter 5 detik aktif
@@ -79,19 +82,20 @@ begin
                 end if;
 
             when menyebrang =>                  --Kondisi saat pejalan kaki boleh menyebrang dan kendaraan wajib berhenti
+                keadaan <= "11";
                 lampu_jalanRaya <= merah;
                 lampu_penyebrang <= hijau;
                 trigger_20 <= '1';                                                  --Trigger counter 20 detik aktif
                 if (clock_count = waktu_menyebrang) then 
                     NS <= tidak_menyebrang;                                         --Setelah counter bernilai sama dengan waktu menyebrang yaitu 20 detik maka NS menjadi kondisi tidak menyebrang
-                    tombol <= '0';                                                      --Reset tombol <= 0;
+                    --tombol <= '0';                                                      --Reset tombol <= 0;
                 end if;
                 
             end case;
             end process comb_proc;
 
         --Prosess counter waktu
-        timer : process (trigger_20, trigger_5, clock)
+        timer : process (trigger_STM, trigger_20, trigger_5, clock)
         begin
             if trigger_5 = '1' then
                 STM_counter1 <= 0;                                                 --Jika trigger counter 5 detik menyala, maka counter akan menghitung 5 kali clock cycle
@@ -117,7 +121,7 @@ begin
             end process timer;
 
         --proses input control untuk decoder puluhan dan satuan berdasarkan counter clock cycle        
-        decCont : process (clock_count, trigger_5, trigger_20)
+        decControl : process (clock_count, trigger_5, trigger_20)
         begin
             --Saat kondisi tunggu atau sesaat setelah pejalan kaki menekan tombol
             --7 segment akan menampilkan hitung mundur 5 detik
