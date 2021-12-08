@@ -98,7 +98,7 @@ begin
         timer : process (trigger_STM, trigger_20, trigger_5, clock)
         begin
             if trigger_5 = '1' then
-                STM_counter1 <= 0;                                                 --Jika trigger counter 5 detik menyala, maka counter akan menghitung 5 kali clock cycle
+                STM_counter1 <= 1;                                                 --Jika trigger counter 5 detik menyala, maka counter akan menghitung 5 kali clock cycle
                 if rising_edge(clock) then                                          --Saat clock kondisi naik            
 					clock_count <= clock_count + 1;                                 --Counter akan bertamabh 1
 					if (clock_count = waktu_tunggu) then                            --Saat counter bernilai sama dengan waktu tunggu atau 5 detik
